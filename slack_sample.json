@@ -1,0 +1,47 @@
+{
+  "responseId": "6e28c945-89f4-48b3-b28f-aa2871b93734",
+  "queryResult": {
+    "queryText": "reproducir corazon de maluma",
+    "parameters": {
+      "song-name": "corazon",
+      "artist": "maluma"
+    },
+    "allRequiredParamsPresent": true,
+    "outputContexts": [
+      {
+        "name": "projects/newagent-6f7b4/agent/sessions/27c202df-9296-49b4-a96a-3fb4a268afcb/contexts/generic",
+        "lifespanCount": 4,
+        "parameters": {
+          "slack_user_id": "UA7P24J3H",
+          "artist": "maluma",
+          "slack_channel": "DAB231BNZ",
+          "song-name.original": "corazon",
+          "artist.original": "maluma",
+          "song-name": "corazon"
+        }
+      }
+    ],
+    "intent": {
+      "name": "projects/newagent-6f7b4/agent/intents/cca45173-d29a-4b5a-b553-238993c0dc0a",
+      "displayName": "PlaySong"
+    },
+    "intentDetectionConfidence": 1,
+    "diagnosticInfo": {},
+    "languageCode": "es"
+  },
+  "originalDetectIntentRequest": {
+    "payload": {
+      "data": {
+        "event_ts": "1525391414.000049",
+        "channel": "DAB231BNZ",
+        "text": "reproducir corazon de maluma",
+        "type": "message",
+        "channel_type": "im",
+        "user": "UA7P24J3H",
+        "ts": "1525391414.000049"
+      },
+      "source": "slack_testbot"
+    }
+  },
+  "session": "projects/newagent-6f7b4/agent/sessions/27c202df-9296-49b4-a96a-3fb4a268afcb"
+}

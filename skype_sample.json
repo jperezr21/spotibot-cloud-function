@@ -1,0 +1,61 @@
+{
+  "responseId": "314559ca-dcca-4039-ab49-58f771da78c6",
+  "queryResult": {
+    "queryText": "Reproducir corazon de maluma",
+    "parameters": {
+      "song-name": "corazon",
+      "artist": "maluma"
+    },
+    "allRequiredParamsPresent": true,
+    "intent": {
+      "name": "projects/newagent-6f7b4/agent/intents/cca45173-d29a-4b5a-b553-238993c0dc0a",
+      "displayName": "PlaySong"
+    },
+    "intentDetectionConfidence": 1,
+    "diagnosticInfo": {},
+    "languageCode": "es"
+  },
+  "originalDetectIntentRequest": {
+    "payload": {
+      "data": {
+        "agent": "botbuilder",
+        "address": {
+          "bot": {
+            "name": "Spotibot",
+            "id": "28:53384dba-3a62-442c-ad38-da9ac7918606"
+          },
+          "serviceUrl": "https://smba.trafficmanager.net/apis/",
+          "id": "1525391512686",
+          "user": {
+            "id": "29:1nj9s6sUUBtlvsAroIaiUvgS8U99DUZnFyU5wHuvgbkE3ENIrHvt83TeE4GSwTKZC"
+          },
+          "conversation": {
+            "id": "29:1nj9s6sUUBtlvsAroIaiUvgS8U99DUZnFyU5wHuvgbkE3ENIrHvt83TeE4GSwTKZC"
+          },
+          "channelId": "skype"
+        },
+        "attachments": [],
+        "entities": [
+          {
+            "country": "UY",
+            "locale": "es-AR",
+            "type": "clientInfo",
+            "platform": "iOS"
+          }
+        ],
+        "sourceEvent": {
+          "text": "Reproducir corazon de maluma"
+        },
+        "source": "skype",
+        "text": "Reproducir corazon de maluma",
+        "type": "message",
+        "user": {
+          "id": "29:1nj9s6sUUBtlvsAroIaiUvgS8U99DUZnFyU5wHuvgbkE3ENIrHvt83TeE4GSwTKZC"
+        },
+        "timestamp": "2018-05-03T23:51:52.769Z"
+      },
+      "source": "skype"
+    }
+  },
+  "session": "projects/newagent-6f7b4/agent/sessions/49586d99-0298-459f-98b9-b15c0ecc230d"
+}

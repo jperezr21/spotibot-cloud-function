@@ -1,0 +1,56 @@
+{
+  "responseId": "defdbfb8-945f-430a-b3e2-d7502ebff3fa",
+  "queryResult": {
+    "queryText": "Reproducir corazonn de maluma",
+    "parameters": {
+      "song-name": "corazonn",
+      "artist": "maluma"
+    },
+    "allRequiredParamsPresent": true,
+    "outputContexts": [
+      {
+        "name": "projects/newagent-6f7b4/agent/sessions/2f009c1b-9450-4e23-a6f7-f8810ff0f4c1/contexts/generic",
+        "lifespanCount": 4,
+        "parameters": {
+          "artist": "maluma",
+          "telegram_chat_id": 534967857,
+          "song-name.original": "corazonn",
+          "artist.original": "maluma",
+          "song-name": "corazonn"
+        }
+      }
+    ],
+    "intent": {
+      "name": "projects/newagent-6f7b4/agent/intents/cca45173-d29a-4b5a-b553-238993c0dc0a",
+      "displayName": "PlaySong"
+    },
+    "intentDetectionConfidence": 1,
+    "diagnosticInfo": {},
+    "languageCode": "es"
+  },
+  "originalDetectIntentRequest": {
+    "payload": {
+      "data": {
+        "update_id": 187737756,
+        "message": {
+          "date": 1525391565,
+          "chat": {
+            "id": 534967857,
+            "type": "private",
+            "first_name": "Jimena"
+          },
+          "message_id": 220,
+          "from": {
+            "language_code": "es-UY",
+            "id": 534967857,
+            "is_bot": false,
+            "first_name": "Jimena"
+          },
+          "text": "Reproducir corazonn de maluma"
+        }
+      },
+      "source": "telegram"
+    }
+  },
+  "session": "projects/newagent-6f7b4/agent/sessions/2f009c1b-9450-4e23-a6f7-f8810ff0f4c1"
+}
