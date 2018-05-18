@@ -22,7 +22,7 @@ exports.fulfillmentHandler = (req, res) => {
     var userId = getUserIdFromRequestData(req.body);
     console.log('userId: ' + userId);
     getUserAccessToken(userId).then(accessToken => {
-      console.log('accessToken @ 23: ' + accessToken);
+      console.log('accessToken @ 25: ' + accessToken);
       if (!accessToken || intent == 'Login') {
         handleLogin(res, userId);
       } else if (intent == 'Logout') {
@@ -54,9 +54,24 @@ exports.fulfillmentHandler = (req, res) => {
 };
 
 function handleLogin(res, userId) {
-  sendResponse(res,
+    var mensajes = [
+    {
+      "card": {
+        "title": "Sesión",
+        "subtitle": "Debes iniciar sesión en Spotify",
+        "buttons": [
+          {
+            "text": "Iniciar Sesión",
+            "postback": "https://newagent-6f7b4.appspot.com/login?user_id="+userId,
+          }
+        ]
+      }
+    }
+  ]
+  res.json({"fulfillmentMessages": mensajes});
+  /*sendResponse(res,
     `Entra al siguiente link: ` +
-    `https://newagent-6f7b4.appspot.com/login?user_id=${userId}`);
+    `https://newagent-6f7b4.appspot.com/login?user_id=${userId}`); */
 }
 
 function handleLogout(res, userId) {
