@@ -80,7 +80,7 @@ function handleLogin(res, userId) {
 
 function handleLogout(res, userId) {
   deleteDatastoreItem(accessTokensDatastoreKind, userId).then(() =>
-    sendResponse(res, 'Sesión cerrada correctamente')
+    sendResponse(res, 'Hemos eliminado sus datos de nuestro chat, sin embargo tienes una sesión abierta en Spotify, puedes cerrarla en este enlace: https://accounts.spotify.com/es/status')
   );
 }
 
