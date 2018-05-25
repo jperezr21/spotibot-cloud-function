@@ -119,6 +119,7 @@ function handlePlayUriSong(req, res, spotifyApi) {
       // error general
       console.log('error general');
     }
+    return;
   })
 }
 
@@ -146,7 +147,7 @@ function handlePlaySong(req, res, spotifyApi) {
             sendResponse(res, "Reproduciendo " + items[0].name + " de " + items[0].artists[0].name)
           );
         } else {
-          var botonesCancion = [];
+          var canciones = [];
           var listaUris = [];
           var cantidad;
           if (items.length > 8) {
@@ -163,11 +164,17 @@ function handlePlaySong(req, res, spotifyApi) {
             for (var j = 0; j < items[i].artists.length; j++) {
               artistas = artistas + " " + items[i].artists[j].name;
             }
-            info = songName + " de " + artistas;
+            info = songName + " de" + artistas;
             var obj = {
-              "text": (i + 1) + " " + info
+              "card": {
+                "title": info,
+                "buttons": [{
+                  "text": "Reproducir",
+                  "postback": (i + 1) + ""
+                }]
+              }
             };
-            botonesCancion.push(obj);
+            canciones.push(obj);
 
             listaUris.push({
               "songUri": songUri,
@@ -175,13 +182,8 @@ function handlePlaySong(req, res, spotifyApi) {
             });
           }
           console.log('saliendo del for...');
-          console.log('botones son: ', botonesCancion);
-          var mensajes = [{
-            "card": {
-              "title": "Canciones disponibles",
-              "buttons": botonesCancion
-            }
-          }];
+          console.log('botones son: ', canciones);
+          var mensajes = canciones;
 
           saveDatastoreItem({
             "userId": getUserIdFromRequestData(req.body),
@@ -280,13 +282,21 @@ function getUserIdFromRequestData(requestData) {
   var payload = requestData.originalDetectIntentRequest.payload;
   switch (payload.source) {
     case 'slack_testbot':
-      return 'slack-' + payload.data.user;
+      if (payload.data.user.id) {
+        return 'slack-' + payload.data.user.id;
+      } else {
+        return 'slack-' + payload.data.user;
+      }
       break;
     case 'skype':
       return 'skype-' + payload.data.address.user.id;
       break;
     case 'telegram':
-      return 'telegram-' + payload.data.message.from.id;
+      if (payload.data.message) {
+        return 'telegram-' + payload.data.message.from.id;
+      } else {
+        return 'telegram-' + payload.data.callback_query.from.id;
+      }
       break;
     default:
       return 'default';
