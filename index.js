@@ -7,26 +7,9 @@ const projectId = 'newagent-6f7b4';
 const accessTokensDatastoreKind = 'spotifyAccessTokens';
 const spotifyCredentialsDatastoreKind = 'spotifyCredentials';
 const spotifyListSongDatastoreKind = 'userListSongs';
-const authenticatedActions = [
-  'Play',
-  'Pause',
-  'PlaySong',
-  'PlayArtist',
-  'PlayPlaylistArtist',
-  'Login',
-  'Logout',
-  'ChooseSong',
-  'Default Welcome Intent'
-];
-const spotifyActions = [
-  'Play',
-  'Pause',
-  'PlaySong',
-  'PlayArtist',
-  'PlayPlaylistArtist',
-  'ChooseSong',
-  'Default Welcome Intent'
-]
+
+const authenticatedActions = ['Play', 'Pause', 'PlaySong', 'PlayArtist', 'PlayPlaylistArtist', 'Login', 'Logout', 'ChooseSong', 'Default Welcome Intent'];
+const spotifyActions = ['Play', 'Pause', 'PlaySong', 'PlayArtist', 'PlayPlaylistArtist', 'ChooseSong', 'Default Welcome Intent'];
 
 /**
  * Responds to any HTTP request that can provide a "message" field in the body.
@@ -82,6 +65,7 @@ exports.fulfillmentHandler = (req, res) => {
                 sendResponse(res, 'Intent not implemented');
             }
           });
+
         }
       }
     });
@@ -125,13 +109,13 @@ function handleLogout(req, res, userId) {
 function handlePlayUriSong(req, res, spotifyApi) {
   console.log('entrando en reproducir lista...');
 
-  var ds = Datastore({projectId: projectId});
+
+  var ds = Datastore({
+    projectId: projectId
+  });
 
   // obtengo cancion asociada
-  var key = ds.key([
-    spotifyListSongDatastoreKind,
-    getUserIdFromRequestData(req.body)
-  ]);
+  var key = ds.key([spotifyListSongDatastoreKind, getUserIdFromRequestData(req.body)]);
   ds.get(key, (err, entity) => {
     if (!err) {
       if (entity) {
@@ -145,8 +129,11 @@ function handlePlayUriSong(req, res, spotifyApi) {
         var songUri = song.songUri;
         var songInfo = song.info;
         console.log('song uri: ', songUri);
-        spotifyApi.play({"uris": [songUri]}).then(() => sendResponse(res, "Reproduciendo " + songInfo));
-
+        spotifyApi.play({
+          "uris": [songUri]
+        }).then(() =>
+          sendResponse(res, "Reproduciendo " + songInfo)
+        );
       } else {
         console.log('no se encontro registro');
       }
@@ -168,60 +155,93 @@ function handlePlaySong(songName, artist, req, res, spotifyApi) {
     query = songName;
   }
   console.log('antes de buscar...');
-  spotifyApi.searchTracks(query).then(function(data) {
-    console.log(JSON.stringify(data.body));
-    var items = data.body.tracks.items;
-    if (items.length > 0) {
-      // si hay solo 1 reproduzco esa
-      if (items.length == 1) {
-        spotifyApi.play({
-          "uris": [items[0].uri]
-        }).then(() => sendResponse(res, "Reproduciendo " + items[0].name + " de " + items[0].artists[0].name));
-      } else {
-        var canciones = [];
-        var listaUris = [];
-        var cantidad;
-        if (items.length > 8) {
-          cantidad = 8;
+
+  spotifyApi.searchTracks(query)
+    .then(function(data) {
+      console.log(JSON.stringify(data.body));
+      var items = data.body.tracks.items;
+      if (items.length > 0) {
+        // si hay solo 1 reproduzco esa
+        if (items.length == 1) {
+          spotifyApi.play({
+            "uris": [items[0].uri]
+          }).then(() =>
+            sendResponse(res, "Reproduciendo " + items[0].name + " de " + items[0].artists[0].name)
+          );
         } else {
-          cantidad = items.length;
-        }
-        console.log('entrando al for...');
-        for (var i = 0; i < cantidad; i++) {
-          var songUri = items[i].uri;
-          var songName = items[i].name;
-          var info = "";
-          var artistas = "";
-          for (var j = 0; j < items[i].artists.length; j++) {
-            artistas = artistas + " " + items[i].artists[j].name;
+          var canciones = [];
+          var listaUris = [];
+          var cantidad;
+          if (items.length > 8) {
+            cantidad = 8;
+          } else {
+            cantidad = items.length;
           }
-          info = songName + " de" + artistas;
-          var obj = {
-            "card": {
-              "title": info,
-              "buttons": [
-                {
+          console.log('entrando al for...');
+          for (var i = 0; i < cantidad; i++) {
+            var songUri = items[i].uri;
+            var songName = items[i].name;
+            var info = "";
+            var artistas = "";
+            for (var j = 0; j < items[i].artists.length; j++) {
+              artistas = artistas + " " + items[i].artists[j].name;
+            }
+            info = songName + " de" + artistas;
+            var obj = {
+              "card": {
+                "title": info,
+                "buttons": [{
                   "text": "Reproducir",
                   "postback": (i + 1) + ""
-                }
-              ]
-            }
-          };
-          canciones.push(obj);
+                }]
+              }
+            };
+            canciones.push(obj);
 
-          listaUris.push({"songUri": songUri, "info": info});
+            listaUris.push({
+              "songUri": songUri,
+              "info": info
+            });
+          }
+          console.log('saliendo del for...');
+          console.log('botones son: ', canciones);
+          var mensajes = canciones;
+
+          saveDatastoreItem({
+            "userId": getUserIdFromRequestData(req.body),
+            "songs": listaUris
+          });
+          // no se puede guardar en contexto anda a saber
+          //res.json({"fulfillmentMessages": mensajes, "outputContexts":[{"name":"projects/${PROJECT_ID}/agent/sessions/${SESSION_ID}/contexts/context listauris", "lifespanCount":5, "parameters":{"listaUris":listaUris}}] });
+          res.json({
+            "fulfillmentMessages": mensajes
+          });
         }
-        console.log('saliendo del for...');
-        console.log('botones son: ', canciones);
-        var mensajes = canciones;
+      } else {
+        sendResponse(res, `Lo siento, no he encontrado esa canción`)
+      }
+    }, function(err) {
+      console.log('Something went wrong!', err);
+    });
+}
 
-        saveDatastoreItem({
-          "userId": getUserIdFromRequestData(req.body),
-          "songs": listaUris
-        });
-        // no se puede guardar en contexto anda a saber
-        //res.json({"fulfillmentMessages": mensajes, "outputContexts":[{"name":"projects/${PROJECT_ID}/agent/sessions/${SESSION_ID}/contexts/context listauris", "lifespanCount":5, "parameters":{"listaUris":listaUris}}] });
-        res.json({"fulfillmentMessages": mensajes});
+function handlePlayPlaylistArtist(req, res, spotifyApi) {
+  var artist = req.body.queryResult.parameters.artist;
+  console.log('searching artist ' + artist);
+  spotifyApi.searchArtists(artist)
+    .then(function(data) {
+      console.log(JSON.stringify(data.body));
+      var items = data.body.artists.items;
+      if (items.length > 0) {
+        var artistName = items[0].name
+        var artistUri = items[0].uri
+        spotifyApi.play({
+          "context_uri": artistUri
+        }).then(() =>
+          sendResponse(res, "Reproduciendo " + artistName)
+        );
+      } else {
+        sendResponse(res, `Lo siento, no he encontrado esa canción`);
       }
     } else {
       sendResponse(res, `Lo siento, no he encontrado esa canción`)
@@ -257,6 +277,18 @@ function handlePause(req, res, spotifyApi) {
   spotifyApi.pause().then(() => sendResponse(res, "Pausando..."));
 }
 
+function handlePlay(req, res, spotifyApi) {
+  spotifyApi.play().then(() =>
+    sendResponse(res, "Reproduciendo...")
+  );
+}
+
+function handlePause(req, res, spotifyApi) {
+  spotifyApi.pause().then(() =>
+    sendResponse(res, "Pausando...")
+  );
+}
+
 function getSpotifyCredentials() {
   return getDatastoreItem(spotifyCredentialsDatastoreKind, 'default');
 }
@@ -283,7 +315,9 @@ function getDatastoreItem(kind, key) {
 
 function saveDatastoreItem(value) {
   console.log('guardando canciones...: ', value);
-  var ds = Datastore({projectId: projectId});
+  var ds = Datastore({
+    projectId: projectId
+  });
 
   // pregunto si existe en bd esa key
   var key = ds.key([spotifyListSongDatastoreKind, value.userId]);
@@ -293,26 +327,32 @@ function saveDatastoreItem(value) {
       var key = ds.key([spotifyListSongDatastoreKind, value.userId]);
       var entity = {
         key: key,
-        data: [
-          {
-            "name": "songs",
-            "value": value.songs
-          }
-        ]
+        data: [{
+          "name": "songs",
+          "value": value.songs
+        }]
       };
 
-      ds.save(entity, (err) => {
-        if (!err) {
-          console.log('canciones guardadas: ', value);
-        } else {
-          console.log('error al guardar');
+      ds.save(
+        entity,
+        (err) => {
+          if (!err) {
+            console.log('canciones guardadas: ', value);
+          } else {
+            console.log('error al guardar');
+          }
         }
-      });
+      );
     } else {
       // error general
       console.log('error general');
     }
+  });
+}
 
+function deleteDatastoreItem(kind, key) {
+  var datastore = Datastore({
+    projectId: projectId
   });
 }
 
@@ -348,7 +388,6 @@ function getUserIdFromRequestData(requestData) {
       return 'default';
   }
 }
-
 function getUserNameFromRequestData(requestData) {
   console.log('data slack: ', JSON.stringify(requestData));
   var payload = requestData.originalDetectIntentRequest.payload;
