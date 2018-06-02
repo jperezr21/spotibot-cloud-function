@@ -1,0 +1,21 @@
+{
+  data: {
+    authed_users: ['UAX8LGP44'],
+    event_id: 'EvAZTW2YAD',
+    api_app_id: 'AAYGDABQF',
+    team_id: 'TA6HCCHEW',
+    event: {
+      event_ts: '1527914252.000069',
+      channel: 'DAXKA0FA9',
+      text: 'reproducir album 3 A.M. de Gente de Zona',
+      channel_type: 'im',
+      type: 'message',
+      user: 'UAPRQ7NAK',
+      ts: '1527914252.000069'
+    },
+    type: 'event_callback',
+    event_time: 1527914252,
+    token: 'f1j3HiSiyyugSXoro45Y24T3'
+  },
+  source: 'slack'
+}

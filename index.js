@@ -5,6 +5,7 @@ const Datastore = require('@google-cloud/datastore');
 
 const projectId = 'newagent-6f7b4';
 const accessTokensDatastoreKind = 'spotifyAccessTokens';
+const refreshTokensDatastoreKind = 'spotifyRefreshTokens';
 const spotifyCredentialsDatastoreKind = 'spotifyCredentials';
 const spotifyListSongDatastoreKind = 'userListSongs';
 const authenticatedActions = [
@@ -16,7 +17,8 @@ const authenticatedActions = [
   'Login',
   'Logout',
   'ChooseSong',
-  'Default Welcome Intent'
+  'Default Welcome Intent',
+  'PlayAlbum'
 ];
 const spotifyActions = [
   'Play',
@@ -25,7 +27,8 @@ const spotifyActions = [
   'PlayArtist',
   'PlayPlaylistArtist',
   'ChooseSong',
-  'Default Welcome Intent'
+  'Default Welcome Intent',
+  'PlayAlbum'
 ]
 
 /**
@@ -43,47 +46,64 @@ exports.fulfillmentHandler = (req, res) => {
     console.log('userId: ' + userId);
     getUserAccessToken(userId).then(accessToken => {
       console.log('accessToken @ 25: ' + accessToken);
-      if (!accessToken || intent == 'Login') {
-        handleLogin(res, userId);
-      } else if (intent == 'Logout') {
-        handleLogout(req , res, userId);
-      } else {
-        if (spotifyActions.includes(intent)) {
-          getSpotifyCredentials().then(spotifyCredentials => {
-            console.log('spotifyCredentials: ' + JSON.stringify(spotifyCredentials));
-            var spotifyApi = new SpotifyWebApi({clientId: spotifyCredentials.clientId, clientSecret: spotifyCredentials.clientSecret});
-            spotifyApi.setAccessToken(accessToken);
-            switch (intent) {
-              case 'PlaySong':
-                var songName = req.body.queryResult.parameters.songName;
-                var artist = req.body.queryResult.parameters.artist;
-                handlePlaySong(songName, artist, req, res, spotifyApi);
-                break;
-              case 'ChooseSong':
-                handlePlayUriSong(req, res, spotifyApi);
-                break;
-              case 'PlayArtist':
-                var songName = req.body.queryResult.parameters.songName;
-                var artist = req.body.queryResult.parameters.artist;
-                handlePlaySong(songName, artist, req, res, spotifyApi);
-              case 'PlayPlaylistArtist':
-                handlePlayPlaylistArtist(req, res, spotifyApi);
-                break;
-              case 'Play':
-                handlePlay(req, res, spotifyApi);
-                break;
-              case 'Pause':
-                handlePause(req, res, spotifyApi);
-                break;
-              case 'Default Welcome Intent':
-                handleWelcome(req, res);
-                break;
-              default:
-                sendResponse(res, 'Intent not implemented');
-            }
-          });
+      getUserRefreshToken(userId).then(refreshToken => {
+        console.log('refreshToken @ 50: ' + refreshToken);
+        if (!accessToken || intent == 'Login') {
+          handleLogin(res, userId);
+        } else if (intent == 'Logout') {
+          handleLogout(req, res, userId);
+        } else {
+          if (spotifyActions.includes(intent)) {
+            getSpotifyCredentials().then(spotifyCredentials => {
+              console.log('spotifyCredentials: ' + JSON.stringify(spotifyCredentials));
+              var spotifyApi = new SpotifyWebApi({clientId: spotifyCredentials.clientId, clientSecret: spotifyCredentials.clientSecret});
+              spotifyApi.setAccessToken(accessToken);
+              spotifyApi.setRefreshToken(refreshToken);
+              // valido y si es necesario refresco token, si da false, hay que hacer login
+              refrescarToken(userId, spotifyApi).then(function(valido) {
+                if (valido) {
+                  switch (intent) {
+                    case 'PlaySong':
+                      var songName = req.body.queryResult.parameters.songName;
+                      var artist = req.body.queryResult.parameters.artist;
+                      handlePlaySong(songName, artist, req, res, spotifyApi);
+                      break;
+                    case 'ChooseSong':
+                      handlePlayUriSong(req, res, spotifyApi);
+                      break;
+                    case 'PlayArtist':
+                      var songName = req.body.queryResult.parameters.songName;
+                      var artist = req.body.queryResult.parameters.artist;
+                      handlePlaySong(songName, artist, req, res, spotifyApi);
+                    case 'PlayPlaylistArtist':
+                      handlePlayPlaylistArtist(req, res, spotifyApi);
+                      break;
+                    case 'Play':
+                      handlePlay(req, res, spotifyApi);
+                      break;
+                    case 'Pause':
+                      handlePause(req, res, spotifyApi);
+                      break;
+                    case 'Default Welcome Intent':
+                      handleWelcome(req, res);
+                      break;
+                    case 'PlayAlbum':
+                      var album = req.body.queryResult.parameters.album;
+                      var artist = req.body.queryResult.parameters.artista;
+                      handlePlayAlbum(album, artist, req, res, spotifyApi);
+                      break;
+                    default:
+                      sendResponse(res, 'Intent not implemented');
+                  }
+                } else {
+                  handleLogin(res, userId);
+                }
+              });
+
+            });
+          }
         }
-      }
+      });
     });
   } else {
     sendResponse(res, 'Intent not implemented');
@@ -119,7 +139,7 @@ function handleLogin(res, userId) {
 }
 
 function handleLogout(req, res, userId) {
-  deleteDatastoreItem(accessTokensDatastoreKind, userId).then(() => sendResponse(res, 'Hemos eliminado sus datos de nuestro chat ' + getUserNameFromRequestData(req.body) + '!, sin embargo tienes una sesión abierta en Spotify, puedes cerrarla en este enlace: https://accounts.spotify.com/es/status'));
+  deleteDatastoreItem(accessTokensDatastoreKind, userId).then(() => sendResponse(res, ' Para cerrar sesión ingrese al siguiente enlace: https://accounts.spotify.com/es/status'));
 }
 
 function handlePlayUriSong(req, res, spotifyApi) {
@@ -148,10 +168,12 @@ function handlePlayUriSong(req, res, spotifyApi) {
         spotifyApi.play({"uris": [songUri]}).then(() => sendResponse(res, "Reproduciendo " + songInfo));
 
       } else {
+        sendError(res);
         console.log('no se encontro registro');
       }
     } else {
       // error general
+      sendError(res);
       console.log('error general');
     }
     return;
@@ -227,7 +249,47 @@ function handlePlaySong(songName, artist, req, res, spotifyApi) {
       sendResponse(res, `Lo siento, no he encontrado esa canción`)
     }
   }, function(err) {
+    sendError(res);
     console.log('Something went wrong!', err);
+  });
+}
+
+function handlePlayAlbum(album, artist, req, res, spotifyApi) {
+  var query;
+  if (album) {
+    query = `album:${album}`;
+  }
+  if (artist) {
+    query = query + ` artist:${artist}`;
+  }
+  if (!album) {
+    sendError(res);
+    return;
+  }
+
+  console.log('antes de buscar..., album:' + album + ' artist:' + artist);
+  spotifyApi.searchAlbums(query, {
+    limit: 5,
+    offset: 1
+  }).then(function(data) {
+    console.log('album respuesta: ', JSON.stringify(data.body));
+    var items = data.body.albums.items;
+    if (items.length <= 0) {
+      sendResponse(res, `Lo siento, no he encontrado ese album`);
+      return;
+    }
+
+    var albumId = items[0].id;
+    var albumUri = items[0].uri;
+    var albumName = items[0].name;
+
+    console.log('uri: ', albumUri);
+
+    spotifyApi.play({"context_uri": albumUri}).then(() => sendResponse(res, "Reproduciendo album " + albumName));
+
+  }, function(err) {
+    console.log('Something went wrong!', err);
+    handleApiError(req, res, err, spotifyApi);
   });
 }
 
@@ -266,6 +328,17 @@ function getUserAccessToken(userId) {
     if (item) {
       console.log('accessToken: ' + item.accessToken);
       return item.accessToken;
+    } else {
+      return '';
+    }
+  });
+}
+
+function getUserRefreshToken(userId) {
+  return getDatastoreItem(refreshTokensDatastoreKind, userId).then(item => {
+    if (item) {
+      console.log('refreshToken: ' + item.refreshToken);
+      return item.refreshToken;
     } else {
       return '';
     }
@@ -326,12 +399,20 @@ function deleteDatastoreItem(kind, key) {
 
 function getUserIdFromRequestData(requestData) {
   var payload = requestData.originalDetectIntentRequest.payload;
+  console.log('getuseridfromreqdata: ', payload);
   switch (payload.source) {
     case 'slack_testbot':
       if (payload.data.user.id) {
         return 'slack-' + payload.data.user.id;
       } else {
         return 'slack-' + payload.data.user;
+      }
+      break;
+    case 'slack':
+      if (payload.data.event.user.id) {
+        return 'slack-' + payload.data.event.user.id;
+      } else {
+        return 'slack-' + payload.data.event.user;
       }
       break;
     case 'skype':
@@ -377,4 +458,62 @@ function getUserNameFromRequestData(requestData) {
 function sendResponse(res, responseText) {
   res.setHeader('Content-Type', 'application/json');
   res.send(JSON.stringify({"fulfillmentText": responseText}));
+}
+
+function sendError(res) {
+  sendResponse(res, "Ups!, ocurrio un error :(, intenta de nuevo :) ");
+}
+
+function saveToken(userId, token) {
+  console.log('guardando access token... token:', token);
+  var ds = Datastore({projectId: projectId});
+
+  if (token) {
+    var key = ds.key([accessTokensDatastoreKind, userId]);
+    var entity = {
+      key: key,
+      data: [
+        {
+          "name": "accessToken",
+          "value": token
+        }
+      ]
+    };
+    ds.save(entity, (err) => {
+      if (!err) {
+        console.log('token guardado: ', token);
+      } else {
+        console.log('error al guardar');
+      }
+    });
+  }
+}
+
+function refrescarToken(userId, spotifyApi) {
+  return new Promise(function(resolve, reject) {
+    spotifyApi.searchAlbums('hola', {
+      limit: 1,
+      offset: 1
+    }).then(function(data) {
+      resolve(true);
+    }, function(error) {
+      console.log('error 1: ', JSON.stringify(error));
+      // si es un error de auth refrescar token
+      if (error.statusCode == 401) {
+        spotifyApi.refreshAccessToken().then(function(data) {
+          console.log('The access token has been refreshed!', data);
+          // Save the access token so that it's used in future calls
+          spotifyApi.setAccessToken(data.body['access_token']);
+        //  spotifyApi.setRefreshToken(data.body['refresh_token']);
+          saveToken(userId, data.body['access_token']);
+          resolve(true);
+        }, function(err) {
+          console.log('Could not refresh access token', error);
+          resolve(false);
+        });
+      } else {
+        resolve(false);
+      }
+    });
+  });
 }
