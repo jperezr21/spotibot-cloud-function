@@ -1,0 +1,9 @@
+steps:
+- name: 'gcr.io/cloud-builders/git'
+  args: ['clone', 'https://github.com/jperezr21/spotibot-cloud-function.git']
+- name: 'gcr.io/cloud-builders/npm'
+  args: ['install']
+  dir: 'spotibot-cloud-function'
+- name: 'gcr.io/cloud-builders/npm'
+  args: ['test']
+  dir: 'spotibot-cloud-function'
