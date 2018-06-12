@@ -18,7 +18,8 @@ const authenticatedActions = [
   'Logout',
   'ChooseSong',
   'Default Welcome Intent',
-  'PlayAlbum'
+  'PlayAlbum',
+  'PlayFavourite'
 ];
 const spotifyActions = [
   'Play',
@@ -28,7 +29,8 @@ const spotifyActions = [
   'PlayPlaylistArtist',
   'ChooseSong',
   'Default Welcome Intent',
-  'PlayAlbum'
+  'PlayAlbum',
+  'PlayFavourite'
 ]
 
 /**
@@ -91,6 +93,9 @@ exports.fulfillmentHandler = (req, res) => {
                       var album = req.body.queryResult.parameters.album;
                       var artist = req.body.queryResult.parameters.artista;
                       handlePlayAlbum(album, artist, req, res, spotifyApi);
+                      break;
+                    case 'PlayFavourite':
+                      handlePlayFavourite(req, res, spotifyApi);
                       break;
                     default:
                       sendResponse(res, 'Intent not implemented');
@@ -293,6 +298,72 @@ function handlePlayAlbum(album, artist, req, res, spotifyApi) {
   });
 }
 
+function handlePlayFavourite(req, res, spotifyApi) {
+  console.log('play fav');
+  spotifyApi.getMyTopTracks({limit: 5}).then(function(data) {
+    console.log(JSON.stringify(data.body));
+    var items = data.body.items;
+    if (items.length > 0) {
+      // si hay solo 1 reproduzco esa
+      if (items.length == 1) {
+        spotifyApi.play({
+          "uris": [items[0].uri]
+        }).then(() => sendResponse(res, "Reproduciendo " + items[0].name + " de " + items[0].artists[0].name));
+      } else {
+        var canciones = [];
+        var listaUris = [];
+        var cantidad;
+        if (items.length > 8) {
+          cantidad = 8;
+        } else {
+          cantidad = items.length;
+        }
+        console.log('entrando al for...');
+        for (var i = 0; i < cantidad; i++) {
+          var songUri = items[i].uri;
+          var songName = items[i].name;
+          var info = "";
+          var artistas = "";
+          for (var j = 0; j < items[i].artists.length; j++) {
+            artistas = artistas + " " + items[i].artists[j].name;
+          }
+          info = songName + " de" + artistas;
+          var obj = {
+            "card": {
+              "title": info,
+              "buttons": [
+                {
+                  "text": "Reproducir",
+                  "postback": (i + 1) + ""
+                }
+              ]
+            }
+          };
+          canciones.push(obj);
+
+          listaUris.push({"songUri": songUri, "info": info});
+        }
+        console.log('saliendo del for...');
+        console.log('botones son: ', canciones);
+        var mensajes = canciones;
+
+        saveDatastoreItem({
+          "userId": getUserIdFromRequestData(req.body),
+          "songs": listaUris
+        });
+        // no se puede guardar en contexto anda a saber
+        //res.json({"fulfillmentMessages": mensajes, "outputContexts":[{"name":"projects/${PROJECT_ID}/agent/sessions/${SESSION_ID}/contexts/context listauris", "lifespanCount":5, "parameters":{"listaUris":listaUris}}] });
+        res.json({"fulfillmentMessages": mensajes});
+      }
+    } else {
+      sendResponse(res, `Lo siento, no he encontrado esa canción`)
+    }
+  }, function(err) {
+    sendError(res);
+    console.log('Something went wrong!', err);
+  });
+}
+
 function handlePlayPlaylistArtist(req, res, spotifyApi) {
   var artist = req.body.queryResult.parameters.artist;
   console.log('searching artist ' + artist);
@@ -398,6 +469,7 @@ function deleteDatastoreItem(kind, key) {
 }
 
 function getUserIdFromRequestData(requestData) {
+
   var payload = requestData.originalDetectIntentRequest.payload;
   console.log('getuseridfromreqdata: ', payload);
   switch (payload.source) {
@@ -409,10 +481,15 @@ function getUserIdFromRequestData(requestData) {
       }
       break;
     case 'slack':
-      if (payload.data.event.user.id) {
+      console.log('es slack', payload.data);
+      if (payload.data.user) {
+        return 'slack-' + payload.data.user.id;
+      } else if (payload.data.event.user.id) {
         return 'slack-' + payload.data.event.user.id;
-      } else {
+      } else if (payload.data.event.user) {
         return 'slack-' + payload.data.event.user;
+      } else {
+        return "";
       }
       break;
     case 'skype':
@@ -428,6 +505,7 @@ function getUserIdFromRequestData(requestData) {
     default:
       return 'default';
   }
+
 }
 
 function getUserNameFromRequestData(requestData) {
@@ -504,7 +582,7 @@ function refrescarToken(userId, spotifyApi) {
           console.log('The access token has been refreshed!', data);
           // Save the access token so that it's used in future calls
           spotifyApi.setAccessToken(data.body['access_token']);
-        //  spotifyApi.setRefreshToken(data.body['refresh_token']);
+          //  spotifyApi.setRefreshToken(data.body['refresh_token']);
           saveToken(userId, data.body['access_token']);
           resolve(true);
         }, function(err) {
