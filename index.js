@@ -2,7 +2,7 @@
 
 const SpotifyWebApi = require('spotify-web-api-node');
 const Datastore = require('@google-cloud/datastore');
-
+var request = require('ajax-request');
 const projectId = 'newagent-6f7b4';
 const accessTokensDatastoreKind = 'spotifyAccessTokens';
 const refreshTokensDatastoreKind = 'spotifyRefreshTokens';
@@ -19,7 +19,11 @@ const authenticatedActions = [
   'ChooseSong',
   'Default Welcome Intent',
   'PlayAlbum',
-  'PlayFavourite'
+  'PlayFavourite',
+  'PlayPrevious',
+  'PlayNext',
+  'PlaySong-more',
+  'PlaySong-more-next'
 ];
 const spotifyActions = [
   'Play',
@@ -30,7 +34,11 @@ const spotifyActions = [
   'ChooseSong',
   'Default Welcome Intent',
   'PlayAlbum',
-  'PlayFavourite'
+  'PlayFavourite',
+  'PlayPrevious',
+  'PlayNext',
+  'PlaySong-more',
+  'PlaySong-more-next'
 ]
 
 /**
@@ -87,7 +95,7 @@ exports.fulfillmentHandler = (req, res) => {
                       handlePause(req, res, spotifyApi);
                       break;
                     case 'Default Welcome Intent':
-                      handleWelcome(req, res);
+                      handleWelcome(req, res, spotifyApi);
                       break;
                     case 'PlayAlbum':
                       var album = req.body.queryResult.parameters.album;
@@ -96,6 +104,18 @@ exports.fulfillmentHandler = (req, res) => {
                       break;
                     case 'PlayFavourite':
                       handlePlayFavourite(req, res, spotifyApi);
+                      break;
+                    case 'PlayPrevious':
+                      handlePrevious(req, res, spotifyApi);
+                      break;
+                    case 'PlayNext':
+                      handleNext(req, res, spotifyApi);
+                      break;
+                    case 'PlaySong-more':
+                      handleMoreInfo(req, res, spotifyApi);
+                      break;
+                    case 'PlaySong-more-next':
+                      handleMoreSongs(req, res, spotifyApi);
                       break;
                     default:
                       sendResponse(res, 'Intent not implemented');
@@ -116,9 +136,10 @@ exports.fulfillmentHandler = (req, res) => {
   }
 };
 
-function handleWelcome(req, res) {
+function handleWelcome(req, res, spotifyApi) {
   var name = getUserNameFromRequestData(req.body);
-  sendResponse(res, 'Bienvenido/a ' + name + '!');
+  handlePlayRecommendations(req, res, spotifyApi, name);
+  //sendResponse(res, 'Hola ' + name + '!, tenemos muchas canciones para tí');
 }
 
 function handleLogin(res, userId) {
@@ -145,6 +166,153 @@ function handleLogin(res, userId) {
 
 function handleLogout(req, res, userId) {
   deleteDatastoreItem(accessTokensDatastoreKind, userId).then(() => sendResponse(res, ' Para cerrar sesión ingrese al siguiente enlace: https://accounts.spotify.com/es/status'));
+}
+
+function handleMoreSongs(req, res, spotifyApi) {
+  console.log('more songs...', JSON.stringify(req.body));
+  var context = req.body.queryResult.outputContexts;
+  var artist;
+  var songName;
+  for (var i = 0; i < context.length; i++) {
+    if (context[i].parameters) {
+      artist = context[i].parameters.artist;
+      songName = context[i].parameters.songName;
+      break;
+    }
+  }
+
+  if (!artist && !songName) {
+    handleWelcome(req, res, spotifyApi, "");
+    return;
+  } else if (!artist && songName) {
+    // hay veces que artista está en nombre canción, validar que pase esto
+    request({
+      url: 'http://ws.audioscrobbler.com/2.0/?method=artist.getinfo&artist=' + songName + '&api_key=b9cbb60547e087959b491b2f670c27f4&format=json&lang=es',
+      method: 'GET',
+      json: true
+    }, function(err, resp, body) {
+      var data = body;
+      if (data.error) {
+        handleWelcome(req, res, spotifyApi, "");
+      } else {
+        artist = songName;
+        handlePlaySong(undefined, artist, req, res, spotifyApi);
+      }
+      return;
+    });
+
+    return;
+  } else {
+    handlePlaySong(undefined, artist, req, res, spotifyApi);
+  }
+  return;
+}
+
+function handleMoreInfo(req, res, spotifyApi) {
+  console.log('req more info: ', JSON.stringify(req.body));
+  var context = req.body.queryResult.outputContexts;
+  var artist;
+  var songName;
+  for (var i = 0; i < context.length; i++) {
+    if (context[i].parameters) {
+      artist = context[i].parameters.artist;
+      songName = context[i].parameters.songName;
+      break;
+    }
+  }
+
+  if (!artist && !songName) {
+    handleWelcome(req, res, spotifyApi, "");
+    return;
+  } else if (!artist && songName) {
+    // hay veces que artista está en nombre canción, validar que pase esto
+    request({
+      url: 'http://ws.audioscrobbler.com/2.0/?method=artist.getinfo&artist=' + songName + '&api_key=b9cbb60547e087959b491b2f670c27f4&format=json&lang=es',
+      method: 'GET',
+      json: true
+    }, function(err, resp, body) {
+      var data = body;
+      if (data.error) {
+        handleWelcome(req, res, spotifyApi, "");
+        return;
+      } else {
+        artist = songName;
+        request({
+          url: 'http://ws.audioscrobbler.com/2.0/?method=artist.getinfo&artist=' + artist + '&api_key=b9cbb60547e087959b491b2f670c27f4&format=json&lang=es',
+          method: 'GET',
+          json: true
+        }, function(err, resp, body) {
+
+          var data = body;
+          if (data.error) {
+            sendResponse(res, 'el artista no se encontró :(, dale más tiempo a que mejore y aparecerá!');
+          }
+          console.log('artist: ', data);
+          var titulo = "Info de " + artist;
+          console.log('name artist: ', data.artist.name);
+          var subtitulo = data.artist.bio.summary.replace(/<[^>]+>/g, '');
+          var imageUrl = data.artist.image[1]["#text"];
+          var verMas = data.artist.bio.links.link.href;
+          var info = [
+            {
+              "card": {
+                "title": titulo,
+                "subtitle": subtitulo,
+                "buttons": [
+                  {
+                    "text": "ver más del artista",
+                    "postback": verMas
+                  }
+                ]
+              }
+            }
+          ];
+          console.log('enviando...,', info);
+
+          res.json({"fulfillmentText": "Hemos notado que quieres mas información!", "fulfillmentMessages": info});
+          return;
+        });
+      }
+    });
+
+  } else {
+    request({
+      url: 'http://ws.audioscrobbler.com/2.0/?method=artist.getinfo&artist=' + artist + '&api_key=b9cbb60547e087959b491b2f670c27f4&format=json&lang=es',
+      method: 'GET',
+      json: true
+    }, function(err, resp, body) {
+
+      var data = body;
+      if (data.error) {
+        sendResponse(res, 'el artista no se encontró :(, dale más tiempo a que mejore y aparecerá!');
+      }
+      console.log('artist: ', data);
+      var titulo = "Info de " + artist;
+      console.log('name artist: ', data.artist.name);
+      var subtitulo = data.artist.bio.summary.replace(/<[^>]+>/g, '');
+      var imageUrl = data.artist.image[1]["#text"];
+      var verMas = data.artist.bio.links.link.href;
+      var info = [
+        {
+          "card": {
+            "title": titulo,
+            "subtitle": subtitulo,
+            "buttons": [
+              {
+                "text": "ver más del artista",
+                "postback": verMas
+              }
+            ]
+          }
+        }
+      ];
+      console.log('enviando...,', info);
+
+      res.json({"fulfillmentText": "Hemos notado que quieres mas información!", "fulfillmentMessages": info});
+      return;
+    });
+  }
+  return;
 }
 
 function handlePlayUriSong(req, res, spotifyApi) {
@@ -298,6 +466,80 @@ function handlePlayAlbum(album, artist, req, res, spotifyApi) {
   });
 }
 
+function handlePlayRecommendations(req, res, spotifyApi, name) {
+  console.log('play recomm');
+  spotifyApi.getRecommendations({
+    seed_genres: ['dance', 'electronic', 'electro', 'latin', 'pop']
+  }).then(function(data) {
+    console.log(JSON.stringify(data.body));
+    var items = data.body.tracks;
+    if (items.length > 0) {
+      // si hay solo 1 reproduzco esa
+      if (items.length == 1) {
+        spotifyApi.play({
+          "uris": [items[0].uri]
+        }).then(() => sendResponse(res, "Reproduciendo " + items[0].name + " de " + items[0].artists[0].name));
+      } else {
+        var canciones = [];
+        var listaUris = [];
+        var cantidad;
+        if (items.length > 8) {
+          cantidad = 8;
+        } else {
+          cantidad = items.length;
+        }
+        console.log('entrando al for...');
+        var obj = {
+          "card": {
+            "title": "Hola " + name + " tenemos estas canciones para ti!"
+          }
+        };
+        canciones.push(obj);
+        for (var i = 0; i < cantidad; i++) {
+          var songUri = items[i].uri;
+          var songName = items[i].name;
+          var info = "";
+          var artistas = "";
+          for (var j = 0; j < items[i].artists.length; j++) {
+            artistas = artistas + " " + items[i].artists[j].name;
+          }
+          info = songName + " de" + artistas;
+          var obj = {
+            "card": {
+              "title": info,
+              "buttons": [
+                {
+                  "text": "Reproducir",
+                  "postback": (i + 1) + ""
+                }
+              ]
+            }
+          };
+          canciones.push(obj);
+
+          listaUris.push({"songUri": songUri, "info": info});
+        }
+        console.log('saliendo del for...');
+        console.log('botones son: ', canciones);
+        var mensajes = canciones;
+
+        saveDatastoreItem({
+          "userId": getUserIdFromRequestData(req.body),
+          "songs": listaUris
+        });
+        // no se puede guardar en contexto anda a saber
+        //res.json({"fulfillmentMessages": mensajes, "outputContexts":[{"name":"projects/${PROJECT_ID}/agent/sessions/${SESSION_ID}/contexts/context listauris", "lifespanCount":5, "parameters":{"listaUris":listaUris}}] });
+        res.json({"fulfillmentMessages": mensajes});
+      }
+    } else {
+      sendResponse(res, `Lo siento, no he encontrado esa canción`)
+    }
+  }, function(err) {
+    sendError(res);
+    console.log('Something went wrong!', err);
+  });
+}
+
 function handlePlayFavourite(req, res, spotifyApi) {
   console.log('play fav');
   spotifyApi.getMyTopTracks({limit: 5}).then(function(data) {
@@ -388,6 +630,22 @@ function handlePlay(req, res, spotifyApi) {
 
 function handlePause(req, res, spotifyApi) {
   spotifyApi.pause().then(() => sendResponse(res, "Pausando..."));
+}
+
+function handleNext(req, res, spotifyApi) {
+  spotifyApi.skipToNext().then((value) => {
+    console.log('siguiente...', value);
+    sendResponse(res, "Reproduciendo siguiente... ");
+  });
+}
+
+function handlePrevious(req, res, spotifyApi) {
+  spotifyApi.skipToPrevious().then((value) => {
+    console.log('anterior...,', value);
+    sendResponse(res, "Reproduciendo anterior...");
+  }, (err) => {
+    sendResponse(res, 'estás la última canción!, intenta ir a la siguiente')
+  });
 }
 
 function getSpotifyCredentials() {
