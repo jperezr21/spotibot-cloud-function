@@ -33,7 +33,7 @@ describe('Default Welcome Intent', function () {
     };
     const res = sinon.mock(resAPI);
     res.expects('setHeader').once().withArgs('Content-Type', 'application/json');
-    res.expects('send').once().withArgs(JSON.stringify({fulfillmentText: 'Bienvenido/a some_nam!'}));
+    res.expects('send').once().withArgs(JSON.stringify({fulfillmentText: 'Bienvenido/a some_name!'}));
 
     cloudFunction.fulfillmentHandler(req, resAPI);
 
