@@ -52,7 +52,7 @@ exports.fulfillmentHandler = (req, res) => {
       getUserRefreshToken(userId).then(refreshToken => {
         if (!accessToken || intent == 'Login') {
           handleLogin(res, userId);
-        } else if (intent == 'Logout') {
+        } else if (intent === 'Logout') {
           handleLogout(req, res, userId);
         } else {
           if (spotifyActions.includes(intent)) {
@@ -61,13 +61,11 @@ exports.fulfillmentHandler = (req, res) => {
               spotifyApi.setAccessToken(accessToken);
               spotifyApi.setRefreshToken(refreshToken);
               // valido y si es necesario refresco token, si da false, hay que hacer login
-              refrescarToken(userId, spotifyApi).then(function(valido) {
+              refrescarToken(userId, spotifyApi).then(function (valido) {
                 if (valido) {
                   switch (intent) {
                     case 'PlaySong':
-                      var songName = req.body.queryResult.parameters.songName;
-                      var artist = req.body.queryResult.parameters.artist;
-                      handlePlaySong(songName, artist, req, res, spotifyApi);
+                      handlePlaySong(req, res, spotifyApi);
                       break;
                     case 'ChooseSong':
                       handlePlayUriSong(req, res, spotifyApi);
@@ -86,13 +84,8 @@ exports.fulfillmentHandler = (req, res) => {
                     case 'Pause':
                       handlePause(req, res, spotifyApi);
                       break;
-                    case 'Default Welcome Intent':
-                      handleWelcome(req, res, spotifyApi);
-                      break;
                     case 'PlayAlbum':
-                      var album = req.body.queryResult.parameters.album;
-                      var artist = req.body.queryResult.parameters.artista;
-                      handlePlayAlbum(album, artist, req, res, spotifyApi);
+                      handlePlayAlbum(req, res, spotifyApi);
                       break;
                     case 'PlayFavourite':
                       handlePlayFavourite(req, res, spotifyApi);
@@ -139,26 +132,24 @@ function handleWelcome(req, res) {
 }
 
 function handleLogin(res, userId) {
-  var mensajes = [
-    {
-      "card": {
-        "title": "Sesión",
-        "subtitle": "Debes iniciar sesión en Spotify",
-        "buttons": [
-          {
-            "text": "Iniciar Sesión",
-            "postback": "https://newagent-6f7b4.appspot.com/login?user_id=" + userId
-          }
-        ]
-      }
+  const mensajes = [{
+    "card": {
+      "title": "Sesión",
+      "subtitle": "Debes iniciar sesión en Spotify",
+      "buttons": [{
+        "text": "Iniciar Sesión",
+        "postback": "https://newagent-6f7b4.appspot.com/login?user_id=" + userId
+      }]
     }
-  ]
+  }];
   res.json({"fulfillmentMessages": mensajes});
   return;
 }
 
 function handleLogout(req, res, userId) {
-  deleteDatastoreItem(accessTokensDatastoreKind, userId).then(() => sendResponse(res, ' Para cerrar sesión ingrese al siguiente enlace: https://accounts.spotify.com/es/status'));
+  deleteDatastoreItem(accessTokensDatastoreKind, userId)
+    .then(() =>
+      sendResponse(res, ' Para cerrar sesión ingrese al siguiente enlace: https://accounts.spotify.com/es/status'));
 }
 
 function handleMoreSongs(req, res, spotifyApi) {
@@ -309,45 +300,38 @@ function handleMoreInfo(req, res, spotifyApi) {
 }
 
 function handlePlayUriSong(req, res, spotifyApi) {
-  console.log('entrando en reproducir lista...');
-
-  var ds = Datastore({projectId: projectId});
-
+  const ds = Datastore({
+    projectId: projectId
+  });
   // obtengo cancion asociada
-  var key = ds.key([
+  const key = ds.key([
     spotifyListSongDatastoreKind,
     getUserIdFromRequestData(req.body)
   ]);
   ds.get(key, (err, entity) => {
     if (!err) {
       if (entity) {
-        console.log('registro es: ', entity);
         // encontro registro con canciones
         var lista = entity.songs;
         var cancionElegida = req.body.queryResult.parameters.number;
-        console.log('lista: ', lista);
-        console.log('elegida: ', cancionElegida);
         var song = lista[cancionElegida - 1];
         var songUri = song.songUri;
         var songInfo = song.info;
-        console.log('song uri: ', songUri);
-        spotifyApi.play({"uris": [songUri]}).then(() => sendResponse(res, "Reproduciendo " + songInfo));
-
+        spotifyApi.play({
+          "uris": [songUri]
+        }).then(() => sendResponse(res, "Reproduciendo " + songInfo));
       } else {
         sendError(res);
-        console.log('no se encontro registro');
       }
     } else {
       // error general
       sendError(res);
-      console.log('error general');
     }
-    return;
   })
 }
 
 function handlePlaySong(songName, artist, req, res, spotifyApi) {
-  var query;
+  let query;
   if (songName && artist) {
     query = `track:${songName} artist:${artist}`;
   } else if (artist) {
@@ -355,13 +339,12 @@ function handlePlaySong(songName, artist, req, res, spotifyApi) {
   } else {
     query = songName;
   }
-  console.log('antes de buscar...');
-  spotifyApi.searchTracks(query).then(function(data) {
+  spotifyApi.searchTracks(query).then(function (data) {
     console.log(JSON.stringify(data.body));
-    var items = data.body.tracks.items;
+    const items = data.body.tracks.items;
     if (items.length > 0) {
       // si hay solo 1 reproduzco esa
-      if (items.length == 1) {
+      if (items.length === 1) {
         spotifyApi.play({
           "uris": [items[0].uri]
         }).then(() => sendResponse(res, "Reproduciendo " + items[0].name + " de " + items[0].artists[0].name));
@@ -374,7 +357,6 @@ function handlePlaySong(songName, artist, req, res, spotifyApi) {
         } else {
           cantidad = items.length;
         }
-        console.log('entrando al for...');
         for (var i = 0; i < cantidad; i++) {
           var songUri = items[i].uri;
           var songName = items[i].name;
@@ -387,17 +369,18 @@ function handlePlaySong(songName, artist, req, res, spotifyApi) {
           var obj = {
             "card": {
               "title": info,
-              "buttons": [
-                {
-                  "text": "Reproducir",
-                  "postback": (i + 1) + ""
-                }
-              ]
+              "buttons": [{
+                "text": "Reproducir",
+                "postback": (i + 1) + ""
+              }]
             }
           };
           canciones.push(obj);
 
-          listaUris.push({"songUri": songUri, "info": info});
+          listaUris.push({
+            "songUri": songUri,
+            "info": info
+          });
         }
         console.log('saliendo del for...');
         console.log('botones son: ', canciones);
@@ -409,12 +392,14 @@ function handlePlaySong(songName, artist, req, res, spotifyApi) {
         });
         // no se puede guardar en contexto anda a saber
         //res.json({"fulfillmentMessages": mensajes, "outputContexts":[{"name":"projects/${PROJECT_ID}/agent/sessions/${SESSION_ID}/contexts/context listauris", "lifespanCount":5, "parameters":{"listaUris":listaUris}}] });
-        res.json({"fulfillmentMessages": mensajes});
+        res.json({
+          "fulfillmentMessages": mensajes
+        });
       }
     } else {
       sendResponse(res, `Lo siento, no he encontrado esa canción`)
     }
-  }, function(err) {
+  }, function (err) {
     sendError(res);
     console.log('Something went wrong!', err);
   });
@@ -437,7 +422,7 @@ function handlePlayAlbum(album, artist, req, res, spotifyApi) {
   spotifyApi.searchAlbums(query, {
     limit: 5,
     offset: 1
-  }).then(function(data) {
+  }).then(function (data) {
     console.log('album respuesta: ', JSON.stringify(data.body));
     var items = data.body.albums.items;
     if (items.length <= 0) {
@@ -451,9 +436,11 @@ function handlePlayAlbum(album, artist, req, res, spotifyApi) {
 
     console.log('uri: ', albumUri);
 
-    spotifyApi.play({"context_uri": albumUri}).then(() => sendResponse(res, "Reproduciendo album " + albumName));
+    spotifyApi.play({
+      "context_uri": albumUri
+    }).then(() => sendResponse(res, "Reproduciendo album " + albumName));
 
-  }, function(err) {
+  }, function (err) {
     console.log('Something went wrong!', err);
     handleApiError(req, res, err, spotifyApi);
   });
@@ -600,19 +587,21 @@ function handlePlayFavourite(req, res, spotifyApi) {
 }
 
 function handlePlayPlaylistArtist(req, res, spotifyApi) {
-  var artist = req.body.queryResult.parameters.artist;
+  const artist = req.body.queryResult.parameters.artist;
   console.log('searching artist ' + artist);
-  spotifyApi.searchArtists(artist).then(function(data) {
+  spotifyApi.searchArtists(artist).then(function (data) {
     console.log(JSON.stringify(data.body));
-    var items = data.body.artists.items;
+    const items = data.body.artists.items;
     if (items.length > 0) {
-      var artistName = items[0].name
-      var artistUri = items[0].uri
-      spotifyApi.play({"context_uri": artistUri}).then(() => sendResponse(res, "Reproduciendo " + artistName));
+      const artistName = items[0].name;
+      const artistUri = items[0].uri;
+      spotifyApi.play({
+        "context_uri": artistUri
+      }).then(() => sendResponse(res, "Reproduciendo " + artistName));
     } else {
       sendResponse(res, `Lo siento, no he encontrado esa canción`);
     }
-  }, function(err) {
+  }, function (err) {
     console.log('Something went wrong!', err);
   });
 }
@@ -668,9 +657,11 @@ function getUserRefreshToken(userId) {
 }
 
 function getDatastoreItem(kind, key) {
-  var datastore = Datastore({projectId: projectId});
-  var key = datastore.key([kind, key]);
-  return datastore.get(key).then(([item]) => {
+  const datastore = Datastore({
+    projectId: projectId
+  });
+  const datastoreKey = datastore.key([kind, key]);
+  return datastore.get(datastoreKey).then(([item]) => {
     console.log('datastore item: ' + JSON.stringify(item));
     return item;
   });
@@ -678,22 +669,22 @@ function getDatastoreItem(kind, key) {
 
 function saveDatastoreItem(value) {
   console.log('guardando canciones...: ', value);
-  var ds = Datastore({projectId: projectId});
+  const ds = Datastore({
+    projectId: projectId
+  });
 
   // pregunto si existe en bd esa key
-  var key = ds.key([spotifyListSongDatastoreKind, value.userId]);
+  const key = ds.key([spotifyListSongDatastoreKind, value.userId]);
   ds.get(key, (err, entity) => {
     if (!err) {
       // no error guardo en bd
-      var key = ds.key([spotifyListSongDatastoreKind, value.userId]);
-      var entity = {
+      const key = ds.key([spotifyListSongDatastoreKind, value.userId]);
+      const entity = {
         key: key,
-        data: [
-          {
-            "name": "songs",
-            "value": value.songs
-          }
-        ]
+        data: [{
+          "name": "songs",
+          "value": value.songs
+        }]
       };
 
       ds.save(entity, (err) => {
@@ -712,15 +703,16 @@ function saveDatastoreItem(value) {
 }
 
 function deleteDatastoreItem(kind, key) {
-  var datastore = Datastore({projectId: projectId});
-  var key = datastore.key([kind, key]);
-  return datastore.delete(key).then(() => {
-    console.log(`Deleted user ${key}`);
+  const datastore = Datastore({
+    projectId: projectId
+  });
+  const datastoreKey = datastore.key([kind, key]);
+  return datastore.delete(datastoreKey).then(() => {
+    console.log(`Deleted item ${datastoreKey}`);
   });
 }
 
 function getUserIdFromRequestData(requestData) {
-
   var payload = requestData.originalDetectIntentRequest.payload;
   console.log('getuseridfromreqdata: ', payload);
   switch (payload.source) {
@@ -730,7 +722,6 @@ function getUserIdFromRequestData(requestData) {
       } else {
         return 'slack-' + payload.data.user;
       }
-      break;
     case 'slack':
       console.log('es slack', payload.data);
       if (payload.data.user) {
@@ -742,17 +733,14 @@ function getUserIdFromRequestData(requestData) {
       } else {
         return "";
       }
-      break;
     case 'skype':
       return 'skype-' + payload.data.address.user.id;
-      break;
     case 'telegram':
       if (payload.data.message) {
         return 'telegram-' + payload.data.message.from.id;
       } else {
         return 'telegram-' + payload.data.callback_query.from.id;
       }
-      break;
     default:
       return 'default';
   }
@@ -764,20 +752,16 @@ function getUserNameFromRequestData(requestData) {
   switch (payload.source) {
     case 'slack_testbot':
       return '';
-      break;
     case 'slack':
       return '';
-      break;
     case 'skype':
       return 'skype-' + payload.data.address.user.id;
-      break;
     case 'telegram':
       if (payload.data.message.chat.first_name) {
         return payload.data.message.chat.first_name;
       } else {
         return '';
       }
-      break;
     default:
       return 'default';
   }
@@ -785,7 +769,9 @@ function getUserNameFromRequestData(requestData) {
 
 function sendResponse(res, responseText) {
   res.setHeader('Content-Type', 'application/json');
-  res.send(JSON.stringify({"fulfillmentText": responseText}));
+  res.send(JSON.stringify({
+    "fulfillmentText": responseText
+  }));
 }
 
 function sendError(res) {
@@ -794,18 +780,18 @@ function sendError(res) {
 
 function saveToken(userId, token) {
   console.log('guardando access token... token:', token);
-  var ds = Datastore({projectId: projectId});
+  var ds = Datastore({
+    projectId: projectId
+  });
 
   if (token) {
     var key = ds.key([accessTokensDatastoreKind, userId]);
     var entity = {
       key: key,
-      data: [
-        {
-          "name": "accessToken",
-          "value": token
-        }
-      ]
+      data: [{
+        "name": "accessToken",
+        "value": token
+      }]
     };
     ds.save(entity, (err) => {
       if (!err) {
@@ -818,25 +804,25 @@ function saveToken(userId, token) {
 }
 
 function refrescarToken(userId, spotifyApi) {
-  return new Promise(function(resolve, reject) {
+  return new Promise(function (resolve, reject) {
     spotifyApi.searchAlbums('hola', {
       limit: 1,
       offset: 1
-    }).then(function(data) {
+    }).then(function (data) {
       resolve(true);
-    }, function(error) {
+    }, function (error) {
       console.log('error 1: ', JSON.stringify(error));
       // si es un error de auth refrescar token
-      if (error.statusCode == 401) {
-        spotifyApi.refreshAccessToken().then(function(data) {
+      if (error.statusCode === 401) {
+        spotifyApi.refreshAccessToken().then(function (data) {
           console.log('The access token has been refreshed!', data);
           // Save the access token so that it's used in future calls
           spotifyApi.setAccessToken(data.body['access_token']);
           //  spotifyApi.setRefreshToken(data.body['refresh_token']);
           saveToken(userId, data.body['access_token']);
           resolve(true);
-        }, function(err) {
-          console.log('Could not refresh access token', error);
+        }, function (err) {
+          console.log('Could not refresh access token', err);
           resolve(false);
         });
       } else {
